@@ -78,44 +78,22 @@ def normalize_phone_number(phone_number):
 
 
 class PhotoHandler(FileSystemEventHandler):
-    def __init__(self,  phone_number, clients_folder):       
-        self.phone_number = phone_number
+    def __init__(self,  phone_number, clients_folder):
         self.folder = os.path.join(clients_folder, phone_number)
         self.last_modified = datetime.now()
-        self.temp_files = {}
+        
+   
+    def on_created(self, event):        
+        if not event.is_directory:                             
+            if event.src_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                self.move_file_with_retry(event.src_path, self.folder)           
+    
 
-    def is_photo_complete(self, file_path):
-        """Проверка, что файл является фотографией и полностью загружен"""
-        try:
-            if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                # Проверка, что файл не изменялся в течение последних 2 секунд
-                time.sleep(2)
-                return True
-            return False
-        except FileNotFoundError:
-            return False
-
-    def on_created(self, event):
-        if not event.is_directory:
-            self.temp_files[event.src_path] = time.time()
-
-    def on_modified(self, event):
-        if not event.is_directory:
-            if event.src_path in self.temp_files:
-                # Проверим, прошло ли достаточно времени с момента последнего изменения файла
-                if time.time() - self.temp_files[event.src_path] > 2:
-                    if self.is_photo_complete(event.src_path):
-                        self.move_file_with_retry(event.src_path, self.folder)
-                        del self.temp_files[event.src_path]
-
-    def on_moved(self, event):
-        if not event.is_directory:
-            if event.src_path in self.temp_files:
-                del self.temp_files[event.src_path]
-                self.temp_files[event.dest_path] = time.time()
-                if self.is_photo_complete(event.dest_path):
-                    self.move_file_with_retry(event.dest_path, self.folder)
-                    del self.temp_files[event.dest_path]
+    def on_moved(self, event):        
+        if not event.is_directory:            
+            if event.dest_path.lower().endswith(('.jpg', '.jpeg', '.png')):           
+                self.move_file_with_retry(event.dest_path, self.folder)
+                    
 
     def move_file_with_retry(self, src, dst_folder, retries=5, delay=1):
         dst = os.path.join(dst_folder, os.path.basename(src))
