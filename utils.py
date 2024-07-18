@@ -86,13 +86,15 @@ class PhotoHandler(FileSystemEventHandler):
     def on_created(self, event):        
         if not event.is_directory:                             
             if event.src_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                self.move_file_with_retry(event.src_path, self.folder)           
+                self.move_file_with_retry(event.src_path, self.folder)
+                self.last_modified = datetime.now()           
     
 
     def on_moved(self, event):        
         if not event.is_directory:            
             if event.dest_path.lower().endswith(('.jpg', '.jpeg', '.png')):           
                 self.move_file_with_retry(event.dest_path, self.folder)
+                self.last_modified = datetime.now()
                     
 
     def move_file_with_retry(self, src, dst_folder, retries=5, delay=1):
