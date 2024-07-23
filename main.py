@@ -15,7 +15,7 @@ from utils import (API_TOKEN,
                    upload_file, 
                    convert_photo,
                    create_and_publish_folder,
-                   retry_on_failure                   
+                   retry_on_failure                                    
                 )
 
 
@@ -66,7 +66,8 @@ async def callback_start_session(query: types.CallbackQuery):
 async def callback_get_bw_photo(query: types.CallbackQuery):
     data = query.data.split('_')    
     message_id = query.message.message_id
-    file_id = file_id_map[data[2]]   
+    file_id = file_id_map[data[2]]
+    origin_name = query.message.document.file_name.split('.')        
 
     # Обновляем сообщение, удаляя кнопку
     await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
@@ -80,7 +81,7 @@ async def callback_get_bw_photo(query: types.CallbackQuery):
     # Загружаем файл
     downloaded_file = await retry_on_failure(bot.download_file, file_path)
 
-    bw_image_path = convert_photo(downloaded_file, file_id)
+    bw_image_path = convert_photo(downloaded_file, origin_name[0])
 
     # Отправляем черно-белое изображение
     bw_file = FSInputFile(bw_image_path)
@@ -101,8 +102,10 @@ async def callback_get_photos(query: types.CallbackQuery,
     
     user_id = query.from_user.id
     folder = users_folders.get(user_id, {}).get('folder', '') 
+
+    logging.info(f"User ID: {user_id}, Folder: {folder}")
     
-    if user_id not in users_folders:        
+    if user_id not in users_folders or not folder:        
         await query.message.edit_text("На данный момент ваших фотографий нет.")
         return
    
@@ -112,41 +115,47 @@ async def callback_get_photos(query: types.CallbackQuery,
     elapsed_time = 0  # Время, прошедшее с последней проверки, когда были файлы
 
     while elapsed_time <= max_wait_time:
-        files = os.listdir(folder) 
-        if files:
-            for filename in files:
-                file_path = os.path.join(folder, filename)
-                if os.path.isfile(file_path):
-                    input_file = FSInputFile(file_path)
+        try:
+            files = os.listdir(folder)
+            logging.info(f"Files found чат: {files}") 
+            if files:
+                for filename in files:
+                    file_path = os.path.join(folder, filename)
+                    if os.path.isfile(file_path):
+                        input_file = FSInputFile(file_path)
 
-                    message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
-                    
-                    # Использование хеширования для создания callback_data
-                    file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
+                        message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
+                        
+                        # Использование хеширования для создания callback_data
+                        file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
 
-                    # Сохранение связи хеш -> file_id
-                    file_id_map[file_id_hash] = message.document.file_id
+                        # Сохранение связи хеш -> file_id
+                        file_id_map[file_id_hash] = message.document.file_id
 
-                    keyboard = InlineKeyboardBuilder()
-                    keyboard.button(text="Получить Ч/Б фото", callback_data=f'get_bw_{file_id_hash}')                    
-                    keyboard.adjust(1)
+                        keyboard = InlineKeyboardBuilder()
+                        keyboard.button(text="Получить Ч/Б фото", callback_data=f'get_bw_{file_id_hash}')                    
+                        keyboard.adjust(1)
 
-                    # Добавляем клавиатуру к сообщению
-                    await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
-                                                        message_id=message.message_id, 
-                                                        reply_markup=keyboard.as_markup()
-                                                    )
-                    os.remove(file_path)  # Удаляем отправленный файл
-            elapsed_time = 0  # Сбрасываем счетчик времени
-        else:
-            await asyncio.sleep(check_interval)
-            elapsed_time += check_interval
-            if elapsed_time >= max_wait_time:
-                await query.message.answer("Все фотографии отправлены.")
-                await asyncio.sleep(1)
-                await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")               
-                break     
-     
+                        # Добавляем клавиатуру к сообщению
+                        await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
+                                                            message_id=message.message_id, 
+                                                            reply_markup=keyboard.as_markup()
+                                                        )
+                        os.remove(file_path)  # Удаляем отправленный файл
+                        elapsed_time = 0  # Сбрасываем счетчик времени
+            else:
+                await asyncio.sleep(check_interval)
+                elapsed_time += check_interval
+                logging.info(f"Elapsed time чат: {elapsed_time}")
+                if elapsed_time >= max_wait_time:
+                    await query.message.answer("Все фотографии отправлены.")
+                    await asyncio.sleep(1)
+                    await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")               
+                    break     
+        except Exception as e:
+            logging.error(f"Ошибка при отправке фото в чат: {e}")
+            break 
+
 
 
 # Обработчик отправки фотографий в облако
@@ -158,8 +167,10 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
     user_id = query.from_user.id
     phone_number = users_folders.get(user_id, {}).get('phone_number', '')
     folder = users_folders.get(user_id, {}).get('folder', '')
+
+    logging.info(f"User ID: {user_id}, Phone_nimber: {phone_number}, Folder: {folder}")
   
-    if user_id not in users_folders:
+    if user_id not in users_folders or not folder:
         await query.message.edit_text("На данный момент ваших фотографий нет.")
         return
 
@@ -173,22 +184,28 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
 
         elapsed_time = 0  # Время, прошедшее с последней проверки, когда были файлы
         while True:
-            files = os.listdir(folder)
-            if files:
-                for filename in files:
-                    file_path = os.path.join(folder, filename)
-                    if os.path.isfile(file_path):                        
-                        await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
-                        os.remove(file_path)
-                elapsed_time = 0  # Сбрасываем счетчик времени
-            else:
-                await asyncio.sleep(check_interval)
-                elapsed_time += check_interval
-                if elapsed_time >= max_wait_time:               
-                    await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
-                    await asyncio.sleep(1)
-                    await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
-                    break
+            try:
+                files = os.listdir(folder)
+                logging.info(f"Files found облако: {files}")
+                if files:
+                    for filename in files:
+                        file_path = os.path.join(folder, filename)
+                        if os.path.isfile(file_path):                        
+                            await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
+                            os.remove(file_path)
+                            elapsed_time = 0  # Сбрасываем счетчик времени
+                else:
+                    await asyncio.sleep(check_interval)
+                    elapsed_time += check_interval
+                    logging.info(f"Elapsed time облако: {elapsed_time}")
+                    if elapsed_time >= max_wait_time:               
+                        await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
+                        await asyncio.sleep(1)
+                        await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
+                        break
+            except Exception as e:
+                logging.error(f"Ошибка при загрузке в облако: {e}")
+                break        
        
 
 

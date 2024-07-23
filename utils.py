@@ -5,6 +5,7 @@ import shutil
 import aiofiles
 import asyncio
 import aiohttp
+import numpy as np
 from PIL import Image, ExifTags
 from watchdog.events import FileSystemEventHandler
 from datetime import datetime
@@ -16,6 +17,14 @@ load_dotenv()
 
 API_TOKEN = os.getenv('BOT_TOKEN')
 TOKEN = os.getenv("YANDEX")
+
+
+# Функция для обнаружения темных фотографий
+def check_photo(image_path: str, threshold: int=50) -> bool:
+    image = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
+    pixels = np.array(image)
+    brightness = np.mean(pixels)    
+    return brightness > threshold
 
 
 
@@ -86,15 +95,21 @@ class PhotoHandler(FileSystemEventHandler):
     def on_created(self, event):        
         if not event.is_directory:                             
             if event.src_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                self.move_file_with_retry(event.src_path, self.folder)
-                self.last_modified = datetime.now()           
-    
+                if check_photo(event.src_path):
+                    self.move_file_with_retry(event.src_path, self.folder)
+                    self.last_modified = datetime.now()           
+                else:
+                    os.remove(event.src_path)    
+
 
     def on_moved(self, event):        
         if not event.is_directory:            
-            if event.dest_path.lower().endswith(('.jpg', '.jpeg', '.png')):           
-                self.move_file_with_retry(event.dest_path, self.folder)
-                self.last_modified = datetime.now()
+            if event.dest_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                if check_photo(event.dest_path):           
+                    self.move_file_with_retry(event.dest_path, self.folder)
+                    self.last_modified = datetime.now()
+                else:
+                    os.remove(event.dest_path)    
                     
 
     def move_file_with_retry(self, src, dst_folder, retries=5, delay=1):
