@@ -27,7 +27,7 @@ init_db()
 
 
 # Задаем глобальные переменные
-timeout = 60 # таймаут для завершения сессии
+timeout = 600 # таймаут для завершения сессии
 user_in_session = None
 general_folder = 'C:\photo'
 clients_folder = 'C:\clients'
