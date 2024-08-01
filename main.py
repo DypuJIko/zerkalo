@@ -9,7 +9,7 @@ from aiogram.types import FSInputFile
 from datetime import datetime, timedelta
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from handlers import router
-
+from database import init_db, add_or_update_user, get_user_folder, add_file_id, get_file_id
 from utils import (API_TOKEN,
                    PhotoHandler,                    
                    upload_file, 
@@ -22,15 +22,15 @@ from utils import (API_TOKEN,
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
+# Инициализация базы данных
+init_db()
+
 
 # Задаем глобальные переменные
-timeout = 600 # таймаут для завершения сессии
+timeout = 60 # таймаут для завершения сессии
 user_in_session = None
 general_folder = 'C:\photo'
 clients_folder = 'C:\clients'
-users_folders = {}  # ассоциация номера телефона с chat_id клиента и его папкой
-# Глобальный словарь для хранения связей хеш -> file_id
-file_id_map = {}
 
 
 
@@ -44,7 +44,7 @@ async def callback_start_session(query: types.CallbackQuery):
 
     if user_in_session is None:
         user_in_session = user_id
-        users_folders[user_id] = {'phone_number': phone_number, 'folder': folder}
+        add_or_update_user(user_id, phone_number, folder)
         os.makedirs(folder, exist_ok=True)
         asyncio.create_task(start_watchdog(phone_number, general_folder, clients_folder))       
 
@@ -66,7 +66,7 @@ async def callback_start_session(query: types.CallbackQuery):
 async def callback_get_bw_photo(query: types.CallbackQuery):
     data = query.data.split('_')    
     message_id = query.message.message_id
-    file_id = file_id_map[data[2]]
+    file_id = get_file_id(data[2])
     origin_name = query.message.document.file_name.split('.')        
 
     # Обновляем сообщение, удаляя кнопку
@@ -101,11 +101,12 @@ async def callback_get_photos(query: types.CallbackQuery,
                               max_wait_time: int = timeout):
     
     user_id = query.from_user.id
-    folder = users_folders.get(user_id, {}).get('folder', '') 
+    user_data = get_user_folder(user_id)
+    folder = user_data[1] if user_data else ''
 
     logging.info(f"User ID: {user_id}, Folder: {folder}")
     
-    if user_id not in users_folders or not folder:        
+    if not folder:        
         await query.message.edit_text("На данный момент ваших фотографий нет.")
         return
    
@@ -130,7 +131,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                         file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
 
                         # Сохранение связи хеш -> file_id
-                        file_id_map[file_id_hash] = message.document.file_id
+                        add_file_id(file_id_hash, message.document.file_id)
 
                         keyboard = InlineKeyboardBuilder()
                         keyboard.button(text="Получить Ч/Б фото", callback_data=f'get_bw_{file_id_hash}')                    
@@ -165,12 +166,13 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                                    max_wait_time: int = timeout):
     
     user_id = query.from_user.id
-    phone_number = users_folders.get(user_id, {}).get('phone_number', '')
-    folder = users_folders.get(user_id, {}).get('folder', '')
+    user_data = get_user_folder(user_id)
+    phone_number = user_data[0] if user_data else ''
+    folder = user_data[1] if user_data else ''
 
     logging.info(f"User ID: {user_id}, Phone_nimber: {phone_number}, Folder: {folder}")
   
-    if user_id not in users_folders or not folder:
+    if not folder:
         await query.message.edit_text("На данный момент ваших фотографий нет.")
         return
 

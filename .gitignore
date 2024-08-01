@@ -4,3 +4,5 @@ Lib/
 Scripts/
 .env
 pyvenv.cfg
+app.log
+database.db
