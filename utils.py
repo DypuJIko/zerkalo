@@ -20,7 +20,7 @@ TOKEN = os.getenv("YANDEX")
 
 
 # Функция для обнаружения темных фотографий
-def check_photo(image_path: str, threshold: int=50) -> bool:
+def check_photo(image_path: str, threshold: int=40) -> bool:
     image = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
     pixels = np.array(image)
     brightness = np.mean(pixels)    
