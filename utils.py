@@ -5,9 +5,11 @@ import shutil
 import aiofiles
 import asyncio
 import aiohttp
+import random
 import numpy as np
-from PIL import Image, ExifTags
+from PIL import Image, ExifTags, ImageOps
 from watchdog.events import FileSystemEventHandler
+from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, vfx
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -19,11 +21,82 @@ API_TOKEN = os.getenv('BOT_TOKEN')
 TOKEN = os.getenv("YANDEX")
 
 
+def create_videos(photo_dir: str, audio_dir: str):    
+    # Создаем список треков и выбираем случайный
+    audios = [f for f in os.listdir(audio_dir) if f.lower().endswith('.mp3')]
+    audio_file = os.path.join(audio_dir, random.choice(audios))  
+
+    # Создаем список фотографий
+    photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]          
+
+    # Создаем ImageClip после корректировки ориентации и размера 
+    clips = [ImageClip(os.path.join(photo_dir, filename)).set_duration(0.5) for filename in photos]
+
+    # Проверяем, что есть хотя бы один клип
+    if clips:
+        try:                
+            # Объединяем клипы в одно слайд-шоу
+            final_clip = concatenate_videoclips(clips, method='compose')
+
+            # Загрузка и наложение аудиофайла
+            audio = AudioFileClip(audio_file)
+            
+            # Зацикливание аудио, если оно короче финального клипа
+            audio = audio.fx(vfx.loop, duration=final_clip.duration)
+            final_clip = final_clip.set_audio(audio)
+
+            # Сохранение итогового видео
+            final_clip.write_videofile('C:\slideshow\slideshow.mp4', fps=24)
+            
+            # Удаление всех фотографий после создания слайдшоу
+            for photo in photos:
+                os.remove(os.path.join(photo_dir, photo))
+        except Exception as e:
+            print(f"Ошибка при создании финального клипа: {e}")
+    else:
+        print("Нет доступных клипов для создания видео.")
+   
+    return 'C:\slideshow\slideshow.mp4'
+
+
+def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080):    
+    try:
+        # Открываем изображение и корректируем его ориентацию
+        with Image.open(image_path) as img:
+            image = ImageOps.exif_transpose(img)  # Автоматическая корректировка ориентации
+           
+            # Изменяем размер изображения, если оно превышает максимальное разрешение
+            image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+
+            # Сохраняем исправленное изображение
+            save_path = os.path.join(save_dir, image_path.split('\\')[-1])                       
+            image.save(save_path, format='JPEG')  
+
+    except Exception as e:
+        print(f"Ошибка при обработке {image_path}: {e}")
+
+
+
 # Функция для обнаружения темных фотографий
-def check_photo(image_path: str, threshold: int=40) -> bool:
+def check_photo(image_path: str, threshold: int=35, crop_percentage: float=0.5) -> bool:
     image = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
-    pixels = np.array(image)
-    brightness = np.mean(pixels)    
+    width, height = image.size
+
+    # Вычисление размеров центральной части изображения
+    crop_width = int(width * crop_percentage)
+    crop_height = int(height * crop_percentage)
+
+    left = (width - crop_width) // 2
+    upper = (height - crop_height) // 2
+    right = left + crop_width
+    lower = upper + crop_height + 250
+
+    # Обрезка изображения до центральной области
+    central_crop = image.crop((left, upper, right, lower))
+
+    pixels = np.array(central_crop)
+    brightness = np.mean(pixels)
+
     return brightness > threshold
 
 

@@ -15,7 +15,9 @@ from utils import (API_TOKEN,
                    upload_file, 
                    convert_photo,
                    create_and_publish_folder,
-                   retry_on_failure                                    
+                   retry_on_failure,
+                   resize_photo,
+                   create_videos                                     
                 )
 
 
@@ -27,8 +29,10 @@ init_db()
 
 
 # Задаем глобальные переменные
-timeout = 600 # таймаут для завершения сессии
+timeout = 60 # таймаут для завершения сессии
 user_in_session = None
+audio_folder = 'C:\music'
+slideshow_folder = 'C:\slideshow'
 general_folder = 'C:\photo'
 clients_folder = 'C:\clients'
 
@@ -40,12 +44,12 @@ async def callback_start_session(query: types.CallbackQuery):
     global user_in_session
     user_id = query.from_user.id
     phone_number = query.data.split('_')[2]
-    folder = os.path.join(clients_folder, phone_number)
+    folder = os.path.join(clients_folder, phone_number)    
 
     if user_in_session is None:
         user_in_session = user_id
         add_or_update_user(user_id, phone_number, folder)
-        os.makedirs(folder, exist_ok=True)
+        os.makedirs(folder, exist_ok=True)        
         asyncio.create_task(start_watchdog(phone_number, general_folder, clients_folder))       
 
         keyboard = InlineKeyboardBuilder()
@@ -99,7 +103,7 @@ async def callback_get_bw_photo(query: types.CallbackQuery):
 async def callback_get_photos(query: types.CallbackQuery,
                               check_interval: int = 10, 
                               max_wait_time: int = timeout):
-    
+    global slideshow_folder, audio_folder
     user_id = query.from_user.id
     user_data = get_user_folder(user_id)
     folder = user_data[1] if user_data else ''
@@ -122,9 +126,8 @@ async def callback_get_photos(query: types.CallbackQuery,
             if files:
                 for filename in files:
                     file_path = os.path.join(folder, filename)
-                    if os.path.isfile(file_path):
+                    if os.path.isfile(file_path): 
                         input_file = FSInputFile(file_path)
-
                         message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
                         
                         # Использование хеширования для создания callback_data
@@ -142,16 +145,22 @@ async def callback_get_photos(query: types.CallbackQuery,
                                                             message_id=message.message_id, 
                                                             reply_markup=keyboard.as_markup()
                                                         )
+                        resize_photo(file_path, slideshow_folder)
                         os.remove(file_path)  # Удаляем отправленный файл
-                        elapsed_time = 0  # Сбрасываем счетчик времени
+                        elapsed_time = 0  # Сбрасываем счетчик времени                       
             else:
                 await asyncio.sleep(check_interval)
                 elapsed_time += check_interval
                 logging.info(f"Elapsed time чат: {elapsed_time}")
-                if elapsed_time >= max_wait_time:
+                if elapsed_time >= max_wait_time:                    
+                    path_video_file = create_videos(slideshow_folder, audio_folder)
+                    slideshow_file = FSInputFile(path_video_file)
+                    await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
+                    os.remove(path_video_file)  # Удаляем отправленный файл 
+
                     await query.message.answer("Все фотографии отправлены.")
                     await asyncio.sleep(1)
-                    await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")               
+                    await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")                          
                     break     
         except Exception as e:
             logging.error(f"Ошибка при отправке фото в чат: {e}")
@@ -164,7 +173,7 @@ async def callback_get_photos(query: types.CallbackQuery,
 async def callback_upload_to_cloud(query: types.CallbackQuery,
                                    check_interval: int = 10, 
                                    max_wait_time: int = timeout):
-    
+    global slideshow_folder, audio_folder
     user_id = query.from_user.id
     user_data = get_user_folder(user_id)
     phone_number = user_data[0] if user_data else ''
@@ -194,13 +203,19 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         file_path = os.path.join(folder, filename)
                         if os.path.isfile(file_path):                        
                             await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
+                            resize_photo(file_path, slideshow_folder)
                             os.remove(file_path)
                             elapsed_time = 0  # Сбрасываем счетчик времени
                 else:
                     await asyncio.sleep(check_interval)
                     elapsed_time += check_interval
                     logging.info(f"Elapsed time облако: {elapsed_time}")
-                    if elapsed_time >= max_wait_time:               
+                    if elapsed_time >= max_wait_time:
+                        path_video_file = create_videos(slideshow_folder, audio_folder)
+                        slideshow_file = FSInputFile(path_video_file)
+                        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
+                        os.remove(path_video_file)  # Удаляем отправленный файл   
+                                    
                         await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
                         await asyncio.sleep(1)
                         await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
