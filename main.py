@@ -29,7 +29,7 @@ init_db()
 
 
 # Задаем глобальные переменные
-timeout = 60 # таймаут для завершения сессии
+timeout = 600 # таймаут для завершения сессии
 user_in_session = None
 audio_folder = 'C:\music'
 slideshow_folder = 'C:\slideshow'
@@ -215,7 +215,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         slideshow_file = FSInputFile(path_video_file)
                         await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
                         os.remove(path_video_file)  # Удаляем отправленный файл   
-                                    
+
                         await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
                         await asyncio.sleep(1)
                         await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
