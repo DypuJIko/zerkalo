@@ -7,8 +7,9 @@ import asyncio
 import aiohttp
 import random
 import numpy as np
-from PIL import Image, ExifTags, ImageOps
+from PIL import Image, ImageOps
 from watchdog.events import FileSystemEventHandler
+from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError, TelegramServerError
 from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, vfx
 from datetime import datetime
 from dotenv import load_dotenv
@@ -108,7 +109,11 @@ async def retry_on_failure(func, *args, **kwargs):
     for attempt in range(retries):
         try:
             return await func(*args, **kwargs)
-        except (aiohttp.ClientOSError, asyncio.CancelledError, ConnectionResetError) as e:
+        except (TelegramServerError, TelegramNetworkError, TelegramRetryAfter,
+                aiohttp.ClientOSError, 
+                asyncio.CancelledError, 
+                ConnectionResetError, 
+                aiohttp.ServerDisconnectedError) as e:
             logging.error(f"Ошибка сети: {e}. новая попытка {delay} секунд...")
             await asyncio.sleep(delay)
             delay *= 2  # Увеличиваем задержку экспоненциально
@@ -118,27 +123,10 @@ async def retry_on_failure(func, *args, **kwargs):
 
 
 def convert_photo(file, file_id):
+    # Открываем изображение и автоматически исправляем ориентацию
+    image = ImageOps.exif_transpose(Image.open(file))
+
     # Преобразуем изображение в черно-белое
-    image = Image.open(file)
-
-    # Исправляем ориентацию изображения
-    try:
-        for orientation in ExifTags.TAGS.keys():
-            if ExifTags.TAGS[orientation] == 'Orientation':
-                break
-        exif = image._getexif()
-        if exif is not None:
-            orientation = exif.get(orientation)
-            if orientation == 3:
-                image = image.rotate(180, expand=True)
-            elif orientation == 6:
-                image = image.rotate(270, expand=True)
-            elif orientation == 8:
-                image = image.rotate(90, expand=True)
-    except (AttributeError, KeyError, IndexError):
-        # Если нет EXIF данных или что-то пошло не так, продолжаем без изменения ориентации
-        pass
-
     bw_image = image.convert('L')
     
     # Сохраняем черно-белое изображение во временный файл с высоким качеством

@@ -29,7 +29,7 @@ init_db()
 
 
 # Задаем глобальные переменные
-timeout = 600 # таймаут для завершения сессии
+timeout = 60 # таймаут для завершения сессии
 user_in_session = None
 audio_folder = 'C:\music'
 slideshow_folder = 'C:\slideshow'
