@@ -26,6 +26,8 @@ def create_videos(photo_dir: str, audio_dir: str):
     # Создаем список треков и выбираем случайный
     audios = [f for f in os.listdir(audio_dir) if f.lower().endswith('.mp3')]
     audio_file = os.path.join(audio_dir, random.choice(audios))  
+    logging.info(audios)
+    logging.info(audio_file)
 
     # Создаем список фотографий
     photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]          
