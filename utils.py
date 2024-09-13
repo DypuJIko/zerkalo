@@ -47,7 +47,7 @@ def create_videos(photo_dir: str, audio_dir: str):
             final_clip = final_clip.set_audio(audio)
 
             # Сохранение итогового видео
-            final_clip.write_videofile('C:\slideshow\slideshow.mp4', fps=24)
+            final_clip.write_videofile('C:\slideshow\slideshow.mp4', fps=30, codec='libx264', audio_codec='aac')
             
             # Удаление всех фотографий после создания слайдшоу
             for photo in photos:
