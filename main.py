@@ -163,8 +163,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                     await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")                          
                     break     
         except Exception as e:
-            logging.error(f"Ошибка при отправке фото в чат: {e}")
-            break 
+            logging.error(f"Ошибка при отправке фото в чат: {e}")            
 
 
 
@@ -221,8 +220,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
                         break
             except Exception as e:
-                logging.error(f"Ошибка при загрузке в облако: {e}")
-                break        
+                logging.error(f"Ошибка при загрузке в облако: {e}")                      
        
 
 

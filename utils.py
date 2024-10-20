@@ -55,11 +55,12 @@ def create_videos(photo_dir: str, audio_dir: str):
             for photo in photos:
                 os.remove(os.path.join(photo_dir, photo))
         except Exception as e:
-            print(f"Ошибка при создании финального клипа: {e}")
+            logging.error(f"Ошибка при создании финального клипа: {e}")
     else:
-        print("Нет доступных клипов для создания видео.")
+        logging.error("Нет доступных клипов для создания видео.")
    
     return 'C:\slideshow\slideshow.mp4'
+
 
 
 def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080):    
@@ -76,7 +77,7 @@ def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080
             image.save(save_path, format='JPEG')  
 
     except Exception as e:
-        print(f"Ошибка при обработке {image_path}: {e}")
+        logging.error(f"Ошибка при обработке {image_path}: {e}")
 
 
 
@@ -111,12 +112,8 @@ async def retry_on_failure(func, *args, **kwargs):
     for attempt in range(retries):
         try:
             return await func(*args, **kwargs)
-        except (TelegramServerError, TelegramNetworkError, TelegramRetryAfter,
-                aiohttp.ClientOSError, 
-                asyncio.CancelledError, 
-                ConnectionResetError, 
-                aiohttp.ServerDisconnectedError) as e:
-            logging.error(f"Ошибка сети: {e}. новая попытка {delay} секунд...")
+        except Exception as e:
+            logging.error(f"Ошибка: {e}. новая попытка {delay} секунд...")
             await asyncio.sleep(delay)
             delay *= 2  # Увеличиваем задержку экспоненциально
     logging.error("Максимальное количество попыток.")
