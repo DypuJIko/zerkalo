@@ -83,7 +83,8 @@ def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080
 
 # Функция для обнаружения темных фотографий
 def check_photo(image_path: str, threshold: int=35, crop_percentage: float=0.5) -> bool:
-    image = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
+    img = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
+    image = ImageOps.exif_transpose(img)  # Автоматическая корректировка ориентации
     width, height = image.size
 
     # Вычисление размеров центральной части изображения
@@ -93,7 +94,7 @@ def check_photo(image_path: str, threshold: int=35, crop_percentage: float=0.5) 
     left = (width - crop_width) // 2
     upper = (height - crop_height) // 2
     right = left + crop_width
-    lower = upper + crop_height + 250
+    lower = upper + crop_height * 1.4
 
     # Обрезка изображения до центральной области
     central_crop = image.crop((left, upper, right, lower))
