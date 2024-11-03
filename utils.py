@@ -22,18 +22,24 @@ API_TOKEN = os.getenv('BOT_TOKEN')
 TOKEN = os.getenv("YANDEX")
 
 
-def create_videos(photo_dir: str, audio_dir: str):    
-    # Создаем список треков и выбираем случайный
-    audios = [f for f in os.listdir(audio_dir) if f.lower().endswith('.mp3')]
-    audio_file = os.path.join(audio_dir, random.choice(audios))  
-    logging.info(audios)
-    logging.info(audio_file)
+def create_videos(photo_dir: str, audio_dir: str):
+    try:    
+        # Создаем список треков и выбираем случайный
+        audios = [f for f in os.listdir(audio_dir) if f.lower().endswith('.mp3')]
+        audio_file = os.path.join(audio_dir, random.choice(audios))  
+        logging.info(audios)
+        logging.info(audio_file)
+    except Exception as er:
+        logging.error(f"Ошибка получения аудио для клипа: {er}")
 
-    # Создаем список фотографий
-    photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]          
+    try:
+        # Создаем список фотографий
+        photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]          
 
-    # Создаем ImageClip после корректировки ориентации и размера 
-    clips = [ImageClip(os.path.join(photo_dir, filename)).set_duration(0.5) for filename in photos]
+        # Создаем ImageClip после корректировки ориентации и размера 
+        clips = [ImageClip(os.path.join(photo_dir, filename)).set_duration(0.5) for filename in photos]
+    except Exception as err:
+        logging.error(f"Ошибка получения фото для клипа: {err}")
 
     # Проверяем, что есть хотя бы один клип
     if clips:
@@ -50,7 +56,20 @@ def create_videos(photo_dir: str, audio_dir: str):
 
             # Сохранение итогового видео
             final_clip.write_videofile('C:\slideshow\slideshow.mp4', fps=30, codec='libx264', audio_codec='aac')
-            
+            final_clip.close()
+
+            # Проверка размера файла
+            file_size = os.path.getsize('C:\slideshow\slideshow.mp4') / (1024 * 1024)  # Размер в МБ
+            logging.info(f"Размер видеофайла: {file_size:.2f} МБ")
+
+            # Если размер больше 50 МБ, уменьшаем качество и сохраняем снова
+            if file_size > 50:
+                logging.info("Файл больше 50 МБ, понижаем качество...")
+                output_path_compressed = 'C:\\slideshow\\slideshow_compressed.mp4'
+                final_clip.write_videofile(output_path_compressed, fps=30, codec='libx264', audio_codec='aac', bitrate="500k")
+                logging.info(f"Видео сохранено с пониженным качеством: {os.path.getsize(output_path_compressed) / (1024 * 1024)}")    
+                os.remove('C:\slideshow\slideshow.mp4')   
+
             # Удаление всех фотографий после создания слайдшоу
             for photo in photos:
                 os.remove(os.path.join(photo_dir, photo))
@@ -77,7 +96,7 @@ def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080
             image.save(save_path, format='JPEG')  
 
     except Exception as e:
-        logging.error(f"Ошибка при обработке {image_path}: {e}")
+        logging.error(f"Ошибка при обработке resize_photo {image_path}: {e}")
 
 
 
@@ -117,7 +136,7 @@ async def retry_on_failure(func, *args, **kwargs):
             logging.error(f"Ошибка: {e}. новая попытка {delay} секунд...")
             await asyncio.sleep(delay)
             delay *= 2  # Увеличиваем задержку экспоненциально
-    logging.error("Максимальное количество попыток.")
+    logging.error(f"Максимальное количество попыток {func}.")
     raise Exception("Максимальное количество попыток")
 
 

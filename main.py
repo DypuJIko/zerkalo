@@ -155,8 +155,9 @@ async def callback_get_photos(query: types.CallbackQuery,
                 if elapsed_time >= max_wait_time:                    
                     path_video_file = create_videos(slideshow_folder, audio_folder)
                     slideshow_file = FSInputFile(path_video_file)
-                    await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
-                    os.remove(path_video_file)  # Удаляем отправленный файл 
+                    if slideshow_file:
+                        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
+                        os.remove(path_video_file)  # Удаляем отправленный файл 
 
                     await query.message.answer("Все фотографии отправлены.")
                     await asyncio.sleep(1)
@@ -212,8 +213,9 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                     if elapsed_time >= max_wait_time:
                         path_video_file = create_videos(slideshow_folder, audio_folder)
                         slideshow_file = FSInputFile(path_video_file)
-                        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
-                        os.remove(path_video_file)  # Удаляем отправленный файл   
+                        if slideshow_file:
+                            await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
+                            os.remove(path_video_file)  # Удаляем отправленный файл   
 
                         await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
                         await asyncio.sleep(1)
