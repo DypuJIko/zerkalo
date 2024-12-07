@@ -101,7 +101,7 @@ def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080
 
 
 # Функция для обнаружения темных фотографий
-def check_photo(image_path: str, threshold: int=35, crop_percentage: float=0.5) -> bool:
+def check_photo(image_path: str, threshold: int=30, crop_percentage: float=0.5) -> bool:
     img = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
     image = ImageOps.exif_transpose(img)  # Автоматическая корректировка ориентации
     width, height = image.size

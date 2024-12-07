@@ -19,7 +19,7 @@ async def get_client_phone_numbers():
     # Тело запроса
     body = {    
         "page": 1,
-        "page_size": 100,
+        "page_size": 1000,
         "fields": [
             "id",
             "name",
