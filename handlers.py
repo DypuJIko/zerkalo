@@ -76,3 +76,4 @@ async def handle_photo(message: Message):
                                  photo=message.photo[-1].file_id, 
                                  caption=message.caption
                             )
+    

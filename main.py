@@ -264,3 +264,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except Exception as err:
         logging.error(f"Ошибка: {err}")
+        

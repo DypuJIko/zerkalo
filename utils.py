@@ -4,12 +4,10 @@ import logging
 import shutil
 import aiofiles
 import asyncio
-import aiohttp
 import random
-import numpy as np
 from PIL import Image, ImageOps
+from PIL.ExifTags import TAGS
 from watchdog.events import FileSystemEventHandler
-from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError, TelegramServerError
 from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, vfx
 from datetime import datetime
 from dotenv import load_dotenv
@@ -101,27 +99,26 @@ def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080
 
 
 # Функция для обнаружения темных фотографий
-def check_photo(image_path: str, threshold: int=30, crop_percentage: float=0.5) -> bool:
-    img = Image.open(image_path).convert('L')  # Преобразование в оттенки серого
-    image = ImageOps.exif_transpose(img)  # Автоматическая корректировка ориентации
-    width, height = image.size
+def check_photo(image_path: str) -> bool:
+    try:
+        img = Image.open(image_path)
+        exif_data = img._getexif()
+        
+        if not exif_data:            
+            logging.warning(f"Нет метаданных у фото {image_path}")
+            # return True  # Нет EXIF-данных
 
-    # Вычисление размеров центральной части изображения
-    crop_width = int(width * crop_percentage)
-    crop_height = int(height * crop_percentage)
-
-    left = (width - crop_width) // 2
-    upper = (height - crop_height) // 2
-    right = left + crop_width
-    lower = upper + crop_height * 1.4
-
-    # Обрезка изображения до центральной области
-    central_crop = image.crop((left, upper, right, lower))
-
-    pixels = np.array(central_crop)
-    brightness = np.mean(pixels)
-
-    return brightness > threshold
+        for tag, value in exif_data.items():            
+            tag_name = TAGS.get(tag, tag)            
+            if tag_name == "Flash":
+                logging.info(f"Параметры вспышки {tag_name} - {value}")
+                if value == 9:
+                    return True # Означает, что вспышка была 
+                else:
+                    return False 
+            
+    except Exception as e:
+        logging.error(f"Ошибка обработки в check_photo {image_path}: {e}")
 
 
 
@@ -263,3 +260,4 @@ async def upload_file(session, file_path, yandex_disk_path):
         else:
             error = await resp.json()
             logging.error(f"Ошибка при получении ссылки загрузки на Яндекс.Диск: {error}")
+            

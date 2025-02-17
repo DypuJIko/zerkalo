@@ -60,3 +60,4 @@ def get_file_id(file_id_hash):
         cursor.execute('SELECT file_id FROM file_id_map WHERE file_id_hash = ?', (file_id_hash,))
         result = cursor.fetchone()
         return result[0] if result else None
+    
