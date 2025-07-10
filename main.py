@@ -128,6 +128,8 @@ async def callback_get_photos(query: types.CallbackQuery,
                     file_path = os.path.join(folder, filename)
                     if os.path.isfile(file_path): 
                         input_file = FSInputFile(file_path)
+
+                        # Отправка файла
                         message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
                         
                         # Использование хеширования для создания callback_data
@@ -145,8 +147,10 @@ async def callback_get_photos(query: types.CallbackQuery,
                                                             message_id=message.message_id, 
                                                             reply_markup=keyboard.as_markup()
                                                         )
+                        
+                        # Добавляем фото в папку для слайдшоу и удаляем оригинал
                         resize_photo(file_path, slideshow_folder)
-                        os.remove(file_path)  # Удаляем отправленный файл
+                        os.remove(file_path)  
                         elapsed_time = 0  # Сбрасываем счетчик времени                       
             else:
                 await asyncio.sleep(check_interval)
@@ -154,10 +158,18 @@ async def callback_get_photos(query: types.CallbackQuery,
                 logging.info(f"Elapsed time чат: {elapsed_time}")
                 if elapsed_time >= max_wait_time:                    
                     path_video_file = create_videos(slideshow_folder, audio_folder)
-                    slideshow_file = FSInputFile(path_video_file)
-                    if slideshow_file:
-                        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
-                        os.remove(path_video_file)  # Удаляем отправленный файл 
+                    if path_video_file:
+                        try:
+                            slideshow_file = FSInputFile(path_video_file)
+                            await retry_on_failure(
+                                bot.send_document,
+                                chat_id=query.message.chat.id,
+                                document=slideshow_file
+                            )
+                            logging.info(f"[upload_to_chat] Slideshow sent.")
+                            os.remove(path_video_file)
+                        except Exception as send_err:
+                            logging.error(f"[upload_to_chat] Ошибка при отправке слайдшоу: {send_err}")
 
                     await query.message.answer("Все фотографии отправлены.")
                     await asyncio.sleep(1)
@@ -165,6 +177,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                     break     
         except Exception as e:
             logging.error(f"Ошибка при отправке фото в чат: {e}")            
+            break            
 
 
 
@@ -192,6 +205,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
 
     async with aiohttp.ClientSession() as session:
         public_link = await retry_on_failure(create_and_publish_folder, session, disk_path)
+        logging.info(f"[upload_to_cloud] Public link: {public_link}")
 
         elapsed_time = 0  # Время, прошедшее с последней проверки, когда были файлы
         while True:
@@ -201,8 +215,12 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                 if files:
                     for filename in files:
                         file_path = os.path.join(folder, filename)
-                        if os.path.isfile(file_path):                        
+                        if os.path.isfile(file_path):
+                            
+                            # Загрузка файла                        
                             await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
+                            
+                            # Добавляем фото в папку для слайдшоу и удаляем оригинал
                             resize_photo(file_path, slideshow_folder)
                             os.remove(file_path)
                             elapsed_time = 0  # Сбрасываем счетчик времени
@@ -212,17 +230,26 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                     logging.info(f"Elapsed time облако: {elapsed_time}")
                     if elapsed_time >= max_wait_time:
                         path_video_file = create_videos(slideshow_folder, audio_folder)
-                        slideshow_file = FSInputFile(path_video_file)
-                        if slideshow_file:
-                            await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=slideshow_file) 
-                            os.remove(path_video_file)  # Удаляем отправленный файл   
+                        if path_video_file:
+                            try:
+                                slideshow_file = FSInputFile(path_video_file)
+                                await retry_on_failure(
+                                    bot.send_document,
+                                    chat_id=query.message.chat.id,
+                                    document=slideshow_file
+                                )
+                                logging.info(f"[upload_to_cloud] Slideshow sent.")
+                                os.remove(path_video_file)
+                            except Exception as send_err:
+                                logging.error(f"[upload_to_cloud] Ошибка при отправке слайдшоу: {send_err}")
 
                         await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
                         await asyncio.sleep(1)
                         await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
                         break
             except Exception as e:
-                logging.error(f"Ошибка при загрузке в облако: {e}")                      
+                logging.error(f"Ошибка при загрузке в облако: {e}")
+                break                      
        
 
 

@@ -20,63 +20,101 @@ API_TOKEN = os.getenv('BOT_TOKEN')
 TOKEN = os.getenv("YANDEX")
 
 
-def create_videos(photo_dir: str, audio_dir: str):
-    try:    
+def create_videos(photo_dir: str, audio_dir: str) -> str | None:
+    """Функция для создания слайдшоу с наложением музыки. 
+    Принимает путь к директории с фото и путь к директории с аудио файлами"""
+    try:
         # Создаем список треков и выбираем случайный
         audios = [f for f in os.listdir(audio_dir) if f.lower().endswith('.mp3')]
-        audio_file = os.path.join(audio_dir, random.choice(audios))  
-        logging.info(audios)
-        logging.info(audio_file)
-    except Exception as er:
-        logging.error(f"Ошибка получения аудио для клипа: {er}")
+        if not audios:
+            logging.error("[create_videos] Нет доступных аудио файлов.")
+            return None
+
+        audio_file = os.path.join(audio_dir, random.choice(audios))
+        logging.info(f"[create_videos] Выбран аудиофайл: {audio_file}")
+
+    except Exception as e:
+        logging.exception(f"[create_videos] Ошибка при поиске аудио: {e}")
+        return None
+
 
     try:
         # Создаем список фотографий
-        photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]          
-
+        photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]
+        if not photos:
+            logging.error("[create_videos] Нет доступных фотографий для слайдшоу.")
+            return None
+        
         # Создаем ImageClip после корректировки ориентации и размера 
-        clips = [ImageClip(os.path.join(photo_dir, filename)).set_duration(0.5) for filename in photos]
-    except Exception as err:
-        logging.error(f"Ошибка получения фото для клипа: {err}")
+        clips = [
+            ImageClip(os.path.join(photo_dir, filename)).set_duration(0.5)
+            for filename in photos
+        ]
 
-    # Проверяем, что есть хотя бы один клип
-    if clips:
-        try:                
-            # Объединяем клипы в одно слайд-шоу
-            final_clip = concatenate_videoclips(clips, method='compose')
+        if not clips:
+            logging.error("[create_videos] Не удалось создать клипы из фотографий.")
+            return None
 
-            # Загрузка и наложение аудиофайла
-            audio = AudioFileClip(audio_file)
-            
-            # Зацикливание аудио, если оно короче финального клипа
-            audio = audio.fx(vfx.loop, duration=final_clip.duration)
-            final_clip = final_clip.set_audio(audio)
+    except Exception as e:
+        logging.exception(f"[create_videos] Ошибка при подготовке фотографий: {e}")
+        return None
+    
+    # Чистим папку слайдшоу
+    for photo in photos:
+        os.remove(os.path.join(photo_dir, photo))
 
-            # Сохранение итогового видео
-            final_clip.write_videofile('C:\slideshow\slideshow.mp4', fps=30, codec='libx264', audio_codec='aac')
-            final_clip.close()
+    try:
+        # Объединяем клипы в одно слайд-шоу
+        final_clip = concatenate_videoclips(clips, method='compose')
 
-            # Проверка размера файла
-            file_size = os.path.getsize('C:\slideshow\slideshow.mp4') / (1024 * 1024)  # Размер в МБ
-            logging.info(f"Размер видеофайла: {file_size:.2f} МБ")
+        # Загрузка и наложение аудиофайла
+        audio = AudioFileClip(audio_file)
 
-            # Если размер больше 50 МБ, уменьшаем качество и сохраняем снова
-            if file_size > 50:
-                logging.info("Файл больше 50 МБ, понижаем качество...")
-                output_path_compressed = 'C:\\slideshow\\slideshow_compressed.mp4'
-                final_clip.write_videofile(output_path_compressed, fps=30, codec='libx264', audio_codec='aac', bitrate="500k")
-                logging.info(f"Видео сохранено с пониженным качеством: {os.path.getsize(output_path_compressed) / (1024 * 1024)}")    
-                os.remove('C:\slideshow\slideshow.mp4')   
+        # Зацикливание аудио, если оно короче финального клипа
+        audio = audio.fx(vfx.loop, duration=final_clip.duration)
 
-            # Удаление всех фотографий после создания слайдшоу
-            for photo in photos:
-                os.remove(os.path.join(photo_dir, photo))
-        except Exception as e:
-            logging.error(f"Ошибка при создании финального клипа: {e}")
-    else:
-        logging.error("Нет доступных клипов для создания видео.")
-   
-    return 'C:\slideshow\slideshow.mp4'
+        final_clip = final_clip.set_audio(audio)
+
+        # Генерируем временный уникальный файл
+        temp_video_path = os.path.join('C:\\slideshow', 'slideshow.mp4')
+
+        # Сохранение итогового видео
+        final_clip.write_videofile(
+            temp_video_path,
+            fps=30,
+            codec='libx264',
+            audio_codec='aac',
+            threads=2
+        )
+        final_clip.close()
+
+        # Проверка размера файла
+        file_size = os.path.getsize(temp_video_path) / (1024 * 1024)
+        logging.info(f"[create_videos] Размер видео: {file_size:.2f} МБ")
+
+        # Если размер больше 50 МБ, уменьшаем качество и сохраняем снова
+        if file_size > 50:
+            logging.info("Файл больше 50 МБ, сжимаем...")
+            compressed_path = temp_video_path.replace('.mp4', '_compressed.mp4')
+
+            final_clip.write_videofile(
+                compressed_path,
+                fps=30,
+                codec='libx264',
+                audio_codec='aac',
+                bitrate="500k"
+            )
+
+            os.remove(temp_video_path)  # Удаляем большой файл
+
+            temp_video_path = compressed_path  # Переопределяем финальный путь!
+            logging.info(f"[create_videos] Сжатое видео: {compressed_path}")        
+
+        return temp_video_path
+
+    except Exception as e:
+        logging.exception(f"[create_videos] Ошибка при создании или сохранении видео: {e}")
+        return None
 
 
 
