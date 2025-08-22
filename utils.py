@@ -76,7 +76,7 @@ def create_videos(photo_dir: str, audio_dir: str) -> str | None:
         final_clip = final_clip.set_audio(audio)
 
         # Генерируем временный уникальный файл
-        temp_video_path = os.path.join('C:\\slideshow', 'slideshow.mp4')
+        temp_video_path = os.path.join(r'C:\slideshow', 'slideshow.mp4')
 
         # Сохранение итогового видео
         final_clip.write_videofile(
@@ -149,7 +149,7 @@ def check_photo(image_path: str) -> bool:
         for tag, value in exif_data.items():            
             tag_name = TAGS.get(tag, tag)            
             if tag_name == "Flash":
-                logging.info(f"Параметры вспышки {tag_name} - {value}")
+                # logging.info(f"Параметры вспышки {tag_name} - {value}")
                 if value == 9:
                     return True # Означает, что вспышка была 
                 else:

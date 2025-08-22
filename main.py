@@ -31,10 +31,10 @@ init_db()
 # Задаем глобальные переменные
 timeout = 600 # таймаут для завершения сессии
 user_in_session = None
-audio_folder = 'C:\music'
-slideshow_folder = 'C:\slideshow'
-general_folder = 'C:\photo'
-clients_folder = 'C:\clients'
+audio_folder = r'C:\music'
+slideshow_folder = r'C:\slideshow'
+general_folder = r'C:\photo'
+clients_folder = r'C:\clients'
 
 
 
@@ -150,6 +150,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                         
                         # Добавляем фото в папку для слайдшоу и удаляем оригинал
                         resize_photo(file_path, slideshow_folder)
+                        await asyncio.sleep(0.5)
                         os.remove(file_path)  
                         elapsed_time = 0  # Сбрасываем счетчик времени                       
             else:
@@ -166,6 +167,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                                 chat_id=query.message.chat.id,
                                 document=slideshow_file
                             )
+                            await asyncio.sleep(0.5)
                             logging.info(f"[upload_to_chat] Slideshow sent.")
                             os.remove(path_video_file)
                         except Exception as send_err:
@@ -176,7 +178,7 @@ async def callback_get_photos(query: types.CallbackQuery,
                     await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")                          
                     break     
         except Exception as e:
-            logging.error(f"Ошибка при отправке фото в чат: {e}")            
+            logging.exception(f"Ошибка при отправке фото в чат: {e}")            
             break            
 
 
@@ -222,6 +224,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                             
                             # Добавляем фото в папку для слайдшоу и удаляем оригинал
                             resize_photo(file_path, slideshow_folder)
+                            await asyncio.sleep(0.5)
                             os.remove(file_path)
                             elapsed_time = 0  # Сбрасываем счетчик времени
                 else:
@@ -238,6 +241,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                                     chat_id=query.message.chat.id,
                                     document=slideshow_file
                                 )
+                                await asyncio.sleep(0.5)
                                 logging.info(f"[upload_to_cloud] Slideshow sent.")
                                 os.remove(path_video_file)
                             except Exception as send_err:
@@ -248,7 +252,7 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         await query.message.answer("Мы будем рады, если вы поделитесь с нами вашими фотографиями для публикации их в группе. Для этого можно отправить фото в этот чат")
                         break
             except Exception as e:
-                logging.error(f"Ошибка при загрузке в облако: {e}")
+                logging.exception(f"Ошибка при загрузке в облако: {e}")
                 break                      
        
 
