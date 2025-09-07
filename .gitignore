@@ -2,6 +2,7 @@ __pycache__/
 Include/
 Lib/
 Scripts/
+.venv/
 .env
 pyvenv.cfg
 app.log
