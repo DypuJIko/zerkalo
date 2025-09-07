@@ -87,12 +87,16 @@ async def callback_get_bw_photo(query: types.CallbackQuery):
 
     bw_image_path = convert_photo(downloaded_file, origin_name[0])
 
-    # Отправляем черно-белое изображение
-    bw_file = FSInputFile(bw_image_path)
-    await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=bw_file)
-
-    # Удаляем временный файл
-    os.remove(bw_image_path)
+    try:
+        # Отправляем черно-белое изображение
+        bw_file = FSInputFile(bw_image_path)
+        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=bw_file)
+    except Exception as send_photo_err:
+        logging.error(f"[callback_get_bw_photo] Ошибка при отправке Ч/Б фото в чат: {send_photo_err}")
+    finally:
+        # Удаляем временный файл
+        if os.path.exists(bw_image_path):
+            os.remove(bw_image_path)
     
     await query.answer()
 
@@ -126,32 +130,38 @@ async def callback_get_photos(query: types.CallbackQuery,
             if files:
                 for filename in files:
                     file_path = os.path.join(folder, filename)
-                    if os.path.isfile(file_path): 
-                        input_file = FSInputFile(file_path)
+                    if os.path.isfile(file_path):
+                        try: 
+                            input_file = FSInputFile(file_path)
 
-                        # Отправка файла
-                        message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
+                            # Отправка файла
+                            message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
                         
-                        # Использование хеширования для создания callback_data
-                        file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
+                            # Использование хеширования для создания callback_data
+                            file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
 
-                        # Сохранение связи хеш -> file_id
-                        add_file_id(file_id_hash, message.document.file_id)
+                            # Сохранение связи хеш -> file_id
+                            add_file_id(file_id_hash, message.document.file_id)
 
-                        keyboard = InlineKeyboardBuilder()
-                        keyboard.button(text="Получить Ч/Б фото", callback_data=f'get_bw_{file_id_hash}')                    
-                        keyboard.adjust(1)
+                            keyboard = InlineKeyboardBuilder()
+                            keyboard.button(text="Получить Ч/Б фото", callback_data=f'get_bw_{file_id_hash}')                    
+                            keyboard.adjust(1)
 
-                        # Добавляем клавиатуру к сообщению
-                        await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
-                                                            message_id=message.message_id, 
-                                                            reply_markup=keyboard.as_markup()
-                                                        )
-                        
-                        # Добавляем фото в папку для слайдшоу и удаляем оригинал
-                        resize_photo(file_path, slideshow_folder)
-                        await asyncio.sleep(0.5)
-                        os.remove(file_path)  
+                            # Добавляем клавиатуру к сообщению
+                            await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
+                                                                message_id=message.message_id, 
+                                                                reply_markup=keyboard.as_markup()
+                                                            )
+                            
+                            # Добавляем фото в папку для слайдшоу
+                            resize_photo(file_path, slideshow_folder)
+                        except Exception as send_photo_err:
+                            logging.error(f"[upload_to_chat] Ошибка при отправке фото в чат: {send_photo_err}")
+                        finally:
+                            if os.path.exists(file_path):
+                                os.remove(file_path)  
+
+                        await asyncio.sleep(1)
                         elapsed_time = 0  # Сбрасываем счетчик времени                       
             else:
                 await asyncio.sleep(check_interval)
@@ -167,11 +177,12 @@ async def callback_get_photos(query: types.CallbackQuery,
                                 chat_id=query.message.chat.id,
                                 document=slideshow_file
                             )
-                            await asyncio.sleep(0.5)
-                            logging.info(f"[upload_to_chat] Slideshow sent.")
-                            os.remove(path_video_file)
-                        except Exception as send_err:
-                            logging.error(f"[upload_to_chat] Ошибка при отправке слайдшоу: {send_err}")
+                            logging.info(f"[upload_to_chat] Слайдшоу отправлено в чат.")                            
+                        except Exception as send_video_err:
+                            logging.error(f"[upload_to_chat] Ошибка при отправке слайдшоу: {send_video_err}")
+                        finally:
+                            if os.path.exists(path_video_file):
+                                os.remove(path_video_file)
 
                     await query.message.answer("Все фотографии отправлены.")
                     await asyncio.sleep(1)
@@ -218,14 +229,19 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                     for filename in files:
                         file_path = os.path.join(folder, filename)
                         if os.path.isfile(file_path):
+                            try:
+                                # Загрузка файла                        
+                                await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
+                                
+                                # Добавляем фото в папку для слайдшоу
+                                resize_photo(file_path, slideshow_folder)
+                            except Exception as send_photo_err:
+                                logging.error(f"[upload_to_cloud]  Ошибка при отправке фото в облако: {send_photo_err}")
+                            finally:
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
                             
-                            # Загрузка файла                        
-                            await retry_on_failure(upload_file, session, file_path, f"{disk_path}/{filename}")
-                            
-                            # Добавляем фото в папку для слайдшоу и удаляем оригинал
-                            resize_photo(file_path, slideshow_folder)
-                            await asyncio.sleep(0.5)
-                            os.remove(file_path)
+                            await asyncio.sleep(1)
                             elapsed_time = 0  # Сбрасываем счетчик времени
                 else:
                     await asyncio.sleep(check_interval)
@@ -240,12 +256,13 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                                     bot.send_document,
                                     chat_id=query.message.chat.id,
                                     document=slideshow_file
-                                )
-                                await asyncio.sleep(0.5)
-                                logging.info(f"[upload_to_cloud] Slideshow sent.")
-                                os.remove(path_video_file)
+                                )                                
+                                logging.info(f"[upload_to_cloud] Слайдшоу отправлено в чат.")                                
                             except Exception as send_err:
                                 logging.error(f"[upload_to_cloud] Ошибка при отправке слайдшоу: {send_err}")
+                            finally:
+                                if os.path.exists(path_video_file):
+                                    os.remove(path_video_file)
 
                         await query.message.edit_text(f"Фотографии загружены в облако. Ссылка для скачивания: {public_link}")
                         await asyncio.sleep(1)

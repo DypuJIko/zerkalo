@@ -37,7 +37,6 @@ def create_videos(photo_dir: str, audio_dir: str) -> str | None:
         logging.exception(f"[create_videos] Ошибка при поиске аудио: {e}")
         return None
 
-
     try:
         # Создаем список фотографий
         photos = [f for f in os.listdir(photo_dir) if f.lower().endswith('.jpg')]
@@ -119,17 +118,17 @@ def create_videos(photo_dir: str, audio_dir: str) -> str | None:
 
 
 def resize_photo(image_path: str, save_dir: str, max_width=1920, max_height=1080):    
-    try:
-        # Открываем изображение и корректируем его ориентацию
+    try:        
         with Image.open(image_path) as img:
-            image = ImageOps.exif_transpose(img)  # Автоматическая корректировка ориентации
+            # Автоматическая корректировка ориентации
+            image = ImageOps.exif_transpose(img)
            
             # Изменяем размер изображения, если оно превышает максимальное разрешение
             image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
 
             # Сохраняем исправленное изображение
-            save_path = os.path.join(save_dir, image_path.split('\\')[-1])                       
-            image.save(save_path, format='JPEG')  
+            save_path = os.path.join(save_dir, image_path.split('\\')[-1])
+            image.save(save_path, format='JPEG')
 
     except Exception as e:
         logging.error(f"Ошибка при обработке resize_photo {image_path}: {e}")
@@ -144,7 +143,7 @@ def check_photo(image_path: str) -> bool:
         
         if not exif_data:            
             logging.warning(f"Нет метаданных у фото {image_path}")
-            # return True  # Нет EXIF-данных
+            return True  # Нет EXIF-данных
 
         for tag, value in exif_data.items():            
             tag_name = TAGS.get(tag, tag)            
@@ -157,7 +156,8 @@ def check_photo(image_path: str) -> bool:
             
     except Exception as e:
         logging.error(f"Ошибка обработки в check_photo {image_path}: {e}")
-
+        return True
+        
 
 
 # Функция для повторной попытки выполнения
