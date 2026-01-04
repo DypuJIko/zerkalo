@@ -68,38 +68,48 @@ async def callback_start_session(query: types.CallbackQuery):
 # Обработчик фотографий в Ч/Б
 @dp.callback_query(F.data.startswith('get_bw_'))
 async def callback_get_bw_photo(query: types.CallbackQuery):
+    await query.answer()
+
     data = query.data.split('_')    
     message_id = query.message.message_id
     file_id = get_file_id(data[2])
     origin_name = query.message.document.file_name.split('.')        
 
     # Обновляем сообщение, удаляя кнопку
-    await bot.edit_message_reply_markup(chat_id=query.message.chat.id, 
-                                        message_id=message_id, 
-                                        reply_markup=None
-                                    )
-    # Получаем файл по id
-    file = await retry_on_failure(bot.get_file, file_id)
-    file_path = file.file_path
-
-    # Загружаем файл
-    downloaded_file = await retry_on_failure(bot.download_file, file_path)
-
-    bw_image_path = convert_photo(downloaded_file, origin_name[0])
-
+    await bot.edit_message_reply_markup(
+                    chat_id=query.message.chat.id, 
+                    message_id=message_id, 
+                    reply_markup=None
+                )
+    
+    bw_image_path = None
     try:
+        # Получаем файл по id
+        file = await retry_on_failure(bot.get_file, file_id)
+        file_path = file.file_path
+
+        # Загружаем файл
+        downloaded_file = await retry_on_failure(bot.download_file, file_path)
+
+        bw_image_path = convert_photo(downloaded_file, origin_name[0])
+
         # Отправляем черно-белое изображение
-        bw_file = FSInputFile(bw_image_path)
-        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=bw_file)
+        bw_filename = os.path.basename(bw_image_path)
+        with open(bw_image_path, 'rb') as f:
+            bw_file_data = f.read()
+
+        await retry_on_failure(
+            bot.send_document,
+            chat_id=query.message.chat.id,
+            document=(bw_filename, bw_file_data)
+        )
     except Exception as send_photo_err:
         logging.error(f"[callback_get_bw_photo] Ошибка при отправке Ч/Б фото в чат: {send_photo_err}")
     finally:
         # Удаляем временный файл
-        if os.path.exists(bw_image_path):
+        if bw_image_path and os.path.exists(bw_image_path):
             os.remove(bw_image_path)
     
-    await query.answer()
-
 
 
 # Обработчик отправки фотографий в чат
@@ -132,10 +142,15 @@ async def callback_get_photos(query: types.CallbackQuery,
                     file_path = os.path.join(folder, filename)
                     if os.path.isfile(file_path):
                         try: 
-                            input_file = FSInputFile(file_path)
+                            with open(file_path, 'rb') as f:
+                                file_data = f.read()
 
                             # Отправка файла
-                            message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=input_file)
+                            message = await retry_on_failure(
+                                                bot.send_document,
+                                                chat_id=query.message.chat.id,
+                                                document=(filename, file_data)
+                                            )
                         
                             # Использование хеширования для создания callback_data
                             file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
@@ -171,11 +186,14 @@ async def callback_get_photos(query: types.CallbackQuery,
                     path_video_file = create_videos(slideshow_folder, audio_folder)
                     if path_video_file:
                         try:
-                            slideshow_file = FSInputFile(path_video_file)
+                            video_filename = os.path.basename(path_video_file)
+                            with open(path_video_file, 'rb') as f:
+                                video_data = f.read()
+
                             await retry_on_failure(
                                 bot.send_document,
                                 chat_id=query.message.chat.id,
-                                document=slideshow_file
+                                document=(video_filename, video_data)
                             )
                             logging.info(f"[upload_to_chat] Слайдшоу отправлено в чат.")                            
                         except Exception as send_video_err:
@@ -251,12 +269,15 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         path_video_file = create_videos(slideshow_folder, audio_folder)
                         if path_video_file:
                             try:
-                                slideshow_file = FSInputFile(path_video_file)
+                                video_filename = os.path.basename(path_video_file)
+                                with open(path_video_file, 'rb') as f:
+                                    video_data = f.read()
+
                                 await retry_on_failure(
                                     bot.send_document,
                                     chat_id=query.message.chat.id,
-                                    document=slideshow_file
-                                )                                
+                                    document=(video_filename, video_data)
+                                )                              
                                 logging.info(f"[upload_to_cloud] Слайдшоу отправлено в чат.")                                
                             except Exception as send_err:
                                 logging.error(f"[upload_to_cloud] Ошибка при отправке слайдшоу: {send_err}")
