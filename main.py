@@ -3,6 +3,7 @@ import logging
 import asyncio
 import aiohttp
 import hashlib
+from aiogram.types import BufferedInputFile
 from watchdog.observers import Observer
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import FSInputFile
@@ -82,32 +83,28 @@ async def callback_get_bw_photo(query: types.CallbackQuery):
                     reply_markup=None
                 )
     
-    bw_image_path = None
+     # Получаем файл по id
+    file = await retry_on_failure(bot.get_file, file_id)
+    file_path = file.file_path
+
+    # Загружаем файл
+    downloaded_file = await retry_on_failure(bot.download_file, file_path)
+
+    bw_image_path = convert_photo(downloaded_file, origin_name[0])
+
     try:
-        # Получаем файл по id
-        file = await retry_on_failure(bot.get_file, file_id)
-        file_path = file.file_path
-
-        # Загружаем файл
-        downloaded_file = await retry_on_failure(bot.download_file, file_path)
-
-        bw_image_path = convert_photo(downloaded_file, origin_name[0])
-
         # Отправляем черно-белое изображение
-        bw_filename = os.path.basename(bw_image_path)
         with open(bw_image_path, 'rb') as f:
             bw_file_data = f.read()
 
-        await retry_on_failure(
-            bot.send_document,
-            chat_id=query.message.chat.id,
-            document=(bw_filename, bw_file_data)
-        )
+        bw_buffered = BufferedInputFile(bw_file_data, filename=os.path.basename(bw_image_path))
+
+        await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=bw_buffered)
     except Exception as send_photo_err:
         logging.error(f"[callback_get_bw_photo] Ошибка при отправке Ч/Б фото в чат: {send_photo_err}")
     finally:
         # Удаляем временный файл
-        if bw_image_path and os.path.exists(bw_image_path):
+        if os.path.exists(bw_image_path):
             os.remove(bw_image_path)
     
 
@@ -145,12 +142,10 @@ async def callback_get_photos(query: types.CallbackQuery,
                             with open(file_path, 'rb') as f:
                                 file_data = f.read()
 
+                            buffered_file = BufferedInputFile(file_data, filename=filename)
+
                             # Отправка файла
-                            message = await retry_on_failure(
-                                                bot.send_document,
-                                                chat_id=query.message.chat.id,
-                                                document=(filename, file_data)
-                                            )
+                            message = await retry_on_failure(bot.send_document, chat_id=query.message.chat.id, document=buffered_file)
                         
                             # Использование хеширования для создания callback_data
                             file_id_hash = hashlib.md5(message.document.file_id.encode()).hexdigest()
@@ -170,11 +165,11 @@ async def callback_get_photos(query: types.CallbackQuery,
                             
                             # Добавляем фото в папку для слайдшоу
                             resize_photo(file_path, slideshow_folder)
+                            os.remove(file_path)  
                         except Exception as send_photo_err:
                             logging.error(f"[upload_to_chat] Ошибка при отправке фото в чат: {send_photo_err}")
-                        finally:
-                            if os.path.exists(file_path):
-                                os.remove(file_path)  
+                        # finally:
+                        #     if os.path.exists(file_path):
 
                         await asyncio.sleep(1)
                         elapsed_time = 0  # Сбрасываем счетчик времени                       
@@ -186,15 +181,16 @@ async def callback_get_photos(query: types.CallbackQuery,
                     path_video_file = create_videos(slideshow_folder, audio_folder)
                     if path_video_file:
                         try:
-                            video_filename = os.path.basename(path_video_file)
                             with open(path_video_file, 'rb') as f:
                                 video_data = f.read()
 
+                            video_buffered = BufferedInputFile(video_data, filename=os.path.basename(path_video_file))
+                            
                             await retry_on_failure(
                                 bot.send_document,
                                 chat_id=query.message.chat.id,
-                                document=(video_filename, video_data)
-                            )
+                                document=video_buffered
+                            )                 
                             logging.info(f"[upload_to_chat] Слайдшоу отправлено в чат.")                            
                         except Exception as send_video_err:
                             logging.error(f"[upload_to_chat] Ошибка при отправке слайдшоу: {send_video_err}")
@@ -269,15 +265,16 @@ async def callback_upload_to_cloud(query: types.CallbackQuery,
                         path_video_file = create_videos(slideshow_folder, audio_folder)
                         if path_video_file:
                             try:
-                                video_filename = os.path.basename(path_video_file)
                                 with open(path_video_file, 'rb') as f:
                                     video_data = f.read()
+
+                                video_buffered = BufferedInputFile(video_data, filename=os.path.basename(path_video_file))
 
                                 await retry_on_failure(
                                     bot.send_document,
                                     chat_id=query.message.chat.id,
-                                    document=(video_filename, video_data)
-                                )                              
+                                    document=video_buffered
+                                )                  
                                 logging.info(f"[upload_to_cloud] Слайдшоу отправлено в чат.")                                
                             except Exception as send_err:
                                 logging.error(f"[upload_to_cloud] Ошибка при отправке слайдшоу: {send_err}")
